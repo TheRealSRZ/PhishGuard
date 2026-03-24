@@ -44,3 +44,6 @@ git clone [https://github.com/TheRealSRZ/PhishGuard.git](https://github.com/TheR
 cd PhishGuard
 git lfs install
 git lfs pull
+```
+
+Developed by Sarvez | Information Security Student @ TARUMT | Aspiring Security Researcher | CTF Enthusiast (Forensics & AI) | Python & Next.js
