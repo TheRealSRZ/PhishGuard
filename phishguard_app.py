@@ -71,7 +71,7 @@ if 'training_metrics' not in st.session_state:
 # SIDEBAR: VISUAL FLOW TRACKER
 # =======================================================================
 with st.sidebar:
-    st.image("https://cdn-icons-png.flaticon.com/512/8144/8144284.png", width=80) # Generic shield icon
+    st.image("https://cdn-icons-png.flaticon.com/512/8144/8144284.png", width=120) # Generic shield icon
     st.markdown("## System Status")
     st.divider()
     
@@ -219,7 +219,7 @@ with tab1:
 # TAB 2: AI MODEL TRAINING
 # -----------------------------------------------------------------------
 with tab2:
-    st.markdown("### ⚙️ Engine Configuration")
+    st.markdown("### ⚙️ AI Model Training")
     
     colA, colB = st.columns(2)
     with colA:
