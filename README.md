@@ -1,7 +1,7 @@
 <div align="center">
   <img src="logo/logo_clear.png" width="120" alt="PhishGuard AI Logo">
   
-  # 🛡️ PhishGuard AI Scanner
+  # 🛡️ PhishGuard AI Phishing Detection System
   **Advanced Natural Language Processing for Threat Detection**
 
   [![Python](https://img.shields.io/badge/Python-3.9+-blue.svg)](https://www.python.org/)
