@@ -1,5 +1,4 @@
 import os
-import platform
 import io
 import string
 import random
@@ -139,23 +138,15 @@ with tab1:
                 log_placeholder_1 = st.empty()
                 log_placeholder_1.code(st.session_state.log_tab1, language="bash")
                 
-            options = Options()
-            options.add_argument("--headless")
-            options.add_argument("--disable-gpu")
-            options.add_argument("--no-sandbox")
-            options.add_argument("--disable-dev-shm-usage")
-            options.add_argument("--log-level=3")
+                options = Options()
+                options.add_argument("--headless")
+                options.add_argument("--disable-gpu")
+                options.add_argument("--no-sandbox")
+                options.add_argument("--disable-dev-shm-usage")
+                options.add_argument("--log-level=3")
+                driver = None
+                master_df = pd.DataFrame(columns=['label', 'text_content'])
 
-            if platform.system() == "Linux":
-                options.binary_location = "/usr/bin/chromium"
-                svc = Service("/usr/bin/chromedriver")
-            else:
-                svc = Service(ChromeDriverManager().install())
-
-            driver = None
-            master_df = pd.DataFrame(columns=['label', 'text_content'])
-
-            with st.spinner("Processing datasets..."):
                 for item in inputs:
                     df = None
                     st.session_state.log_tab1 += f"\n[Target] {item}\n"
@@ -164,8 +155,7 @@ with tab1:
                     try:
                         if item.startswith('http'):
                             if driver is None:
-                                # Updated to use our new 'svc' variable
-                                driver = webdriver.Chrome(service=svc, options=options)
+                                driver = webdriver.Chrome(service=Service(ChromeDriverManager().install()), options=options)
                             driver.get(item)
                             page_text = driver.find_element(By.TAG_NAME, "body").get_attribute("textContent")
                             if '.tsv' in item.lower():
@@ -460,33 +450,22 @@ with tab4:
             execute_prediction(raw_text_input)
 
         if analyze_url_btn:
-                    if not url_input.startswith("http"):
-                        st.warning("Invalid URL. Include http:// or https://")
-                    else:
-                        with st.spinner("Scraping target..."):
-                            try:
-                                options = Options()
-                                options.add_argument("--headless")
-                                options.add_argument("--disable-gpu")
-                                options.add_argument("--no-sandbox")
-                                options.add_argument("--disable-dev-shm-usage")
-                                
-                                # --- NEW OS-AWARE SELENIUM SETUP ---
-                                if platform.system() == "Linux":
-                                    options.binary_location = "/usr/bin/chromium"
-                                    svc = Service("/usr/bin/chromedriver")
-                                else:
-                                    svc = Service(ChromeDriverManager().install())
-                                    
-                                driver = webdriver.Chrome(service=svc, options=options)
-                                # -----------------------------------
-                                
-                                driver.get(url_input)
-                                time.sleep(2)
-                                page_text = driver.find_element(By.TAG_NAME, "body").text
-                                driver.quit()
-                                
-                                execute_prediction(page_text[:5000])
-                                
-                            except Exception as e:
-                                st.error(f"⚠️ Scraping Failed. If on Streamlit Cloud, ensure packages.txt is configured. Error details: {e}")
+            if not url_input.startswith("http"):
+                st.warning("Invalid URL. Include http:// or https://")
+            else:
+                with st.spinner("Scraping target..."):
+                    try:
+                        options = Options()
+                        options.add_argument("--headless")
+                        options.add_argument("--disable-gpu")
+                        options.add_argument("--no-sandbox")
+                        options.add_argument("--disable-dev-shm-usage")
+                        
+                        driver = webdriver.Chrome(service=Service(ChromeDriverManager().install()), options=options)
+                        driver.get(url_input)
+                        time.sleep(2)
+                        page_text = driver.find_element(By.TAG_NAME, "body").text
+                        driver.quit()
+                        execute_prediction(page_text[:5000])
+                    except Exception as e:
+                        st.error("⚠️ Scraping Failed. If on Streamlit Cloud, ensure packages.txt is configured.")
