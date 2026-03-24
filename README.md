@@ -46,4 +46,4 @@ git lfs install
 git lfs pull
 ```
 
-Developed by Sarvez | Information Security Student @ TARUMT | Aspiring Security Researcher | CTF Enthusiast (Forensics & AI) | Python & Next.js
+Developed by Sarvez & Lovely Teammates | Information Security Student @ TARUMT | Aspiring Security Researcher | CTF Enthusiast (Forensics & AI) | Python & Next.js
