@@ -72,7 +72,7 @@ if 'training_metrics' not in st.session_state:
 # SIDEBAR: VISUAL FLOW TRACKER
 # =======================================================================
 with st.sidebar:
-    st.image("https://cdn-icons-png.flaticon.com/512/8144/8144284.png", width=120)
+    st.image("logo/logo_clear.png", width=120)
     st.markdown("## System Status")
     st.divider()
     
