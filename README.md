@@ -1,5 +1,5 @@
 <div align="center">
-  <img src="logo.png" width="120" alt="PhishGuard AI Logo">
+  <img src="logo/logo.png" width="120" alt="PhishGuard AI Logo">
   
   # 🛡️ PhishGuard AI Scanner
   **Advanced Natural Language Processing for Threat Detection**
