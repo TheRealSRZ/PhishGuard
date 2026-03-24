@@ -72,8 +72,14 @@ if 'training_metrics' not in st.session_state:
 # SIDEBAR: VISUAL FLOW TRACKER
 # =======================================================================
 with st.sidebar:
-    st.image("logo/logo_clear.png", width=120)
-    st.markdown("## System Status")
+    # 1. Use columns to squeeze the image into the exact center
+    col1, col2, col3 = st.columns([1, 1.5, 1])
+    with col2:
+        # Replace "logo.png" with the actual name of your saved logo file
+        st.image("logo.png", width=120)
+        
+    # 2. Use a touch of HTML to center the header text
+    st.markdown("<h2 style='text-align: center; margin-top: -10px;'>System Status</h2>", unsafe_allow_html=True)
     st.divider()
     
     steps = [
@@ -92,7 +98,7 @@ with st.sidebar:
             st.markdown(f"<div style='padding:10px; border-radius:5px; background-color:rgba(128,128,128,0.1); color:gray; margin-bottom:10px;'>⏳ {step}</div>", unsafe_allow_html=True)
             
     st.divider()
-    st.caption("Developed for threat intelligence & phishing mitigation.")
+    st.markdown("<p style='text-align: center; color: gray; font-size: 0.85rem;'>Developed for threat intelligence & phishing mitigation.</p>", unsafe_allow_html=True)
 
 # =======================================================================
 # MAIN HEADER
