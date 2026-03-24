@@ -76,7 +76,7 @@ with st.sidebar:
     col1, col2, col3 = st.columns([1, 1.5, 1])
     with col2:
         # Replace "logo.png" with the actual name of your saved logo file
-        st.image("logo.png", width=120)
+        st.image("logo/logo_clear.png", width=120)
         
     # 2. Use a touch of HTML to center the header text
     st.markdown("<h2 style='text-align: center; margin-top: -10px;'>System Status</h2>", unsafe_allow_html=True)
