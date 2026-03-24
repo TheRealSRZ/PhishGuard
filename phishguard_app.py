@@ -72,7 +72,7 @@ if 'training_metrics' not in st.session_state:
 # SIDEBAR: VISUAL FLOW TRACKER
 # =======================================================================
 with st.sidebar:
-    st.image("https://cdn-icons-png.flaticon.com/512/8144/8144284.png", width=120) # Generic shield icon
+    st.image("https://cdn-icons-png.flaticon.com/512/8144/8144284.png", width=120)
     st.markdown("## System Status")
     st.divider()
     
@@ -134,86 +134,120 @@ with tab1:
             st.warning("⚠️ Please provide at least one input source.")
         else:
             st.session_state.log_tab1 = "--- Initializing Extraction Protocol ---\n"
+            st.session_state.log_tab1 += f"Environment: {platform.system()} OS Detected. Configuring drivers...\n"
             
             with st.status("Crawling & Processing Data...", expanded=True) as status:
                 log_placeholder_1 = st.empty()
                 log_placeholder_1.code(st.session_state.log_tab1, language="bash")
                 
-            options = Options()
-            options.add_argument("--headless")
-            options.add_argument("--disable-gpu")
-            options.add_argument("--no-sandbox")
-            options.add_argument("--disable-dev-shm-usage")
-            options.add_argument("--log-level=3")
+                options = Options()
+                options.add_argument("--headless")
+                options.add_argument("--disable-gpu")
+                options.add_argument("--no-sandbox")
+                options.add_argument("--disable-dev-shm-usage")
+                options.add_argument("--log-level=3")
 
-            if platform.system() == "Linux":
-                options.binary_location = "/usr/bin/chromium"
-                svc = Service("/usr/bin/chromedriver")
-            else:
-                svc = Service(ChromeDriverManager().install())
+                if platform.system() == "Linux":
+                    options.binary_location = "/usr/bin/chromium"
+                    svc = Service("/usr/bin/chromedriver")
+                else:
+                    svc = Service(ChromeDriverManager().install())
 
-            driver = None
-            master_df = pd.DataFrame(columns=['label', 'text_content'])
+                driver = None
+                master_df = pd.DataFrame(columns=['label', 'text_content'])
 
-            with st.spinner("Processing datasets..."):
-                for item in inputs:
-                    df = None
-                    st.session_state.log_tab1 += f"\n[Target] {item}\n"
-                    log_placeholder_1.code(st.session_state.log_tab1, language="bash")
-                    
-                    try:
-                        if item.startswith('http'):
-                            if driver is None:
-                                # Updated to use our new 'svc' variable
-                                driver = webdriver.Chrome(service=svc, options=options)
-                            driver.get(item)
-                            page_text = driver.find_element(By.TAG_NAME, "body").get_attribute("textContent")
-                            if '.tsv' in item.lower():
-                                df = pd.read_csv(io.StringIO(page_text), sep='\t', header=None, on_bad_lines='skip')
-                            else:
-                                df = pd.read_csv(io.StringIO(page_text), on_bad_lines='skip')
-                        else:
-                            file_path = item if os.path.exists(item) else os.path.join(DATASETS_DIR, item)
-                            if os.path.exists(file_path):
-                                if file_path.lower().endswith('.tsv'):
-                                    df = pd.read_csv(file_path, sep='\t', header=None, on_bad_lines='skip')
-                                else:
-                                    df = pd.read_csv(file_path, on_bad_lines='skip')
-                            else:
-                                st.session_state.log_tab1 += f" ❌ Error: File not found.\n"
+                with st.spinner("Processing datasets..."):
+                    for item in inputs:
+                        df = None
+                        st.session_state.log_tab1 += f"\n[Target] {item}\n"
+                        log_placeholder_1.code(st.session_state.log_tab1, language="bash")
+                        
+                        try:
+                            if item.startswith('http'):
+                                if driver is None:
+                                    st.session_state.log_tab1 += "  -> [System] Spinning up headless Chrome Webdriver...\n"
+                                    driver = webdriver.Chrome(service=svc, options=options)
+                                
+                                st.session_state.log_tab1 += "  -> [Network] Initiating HTTP GET request...\n"
                                 log_placeholder_1.code(st.session_state.log_tab1, language="bash")
+                                
+                                driver.get(item)
+                                page_text = driver.find_element(By.TAG_NAME, "body").get_attribute("textContent")
+                                
+                                st.session_state.log_tab1 += f"  -> [Network] Downloaded {len(page_text):,} characters of raw content.\n"
+                                st.session_state.log_tab1 += "  -> [Parser] Converting raw text into tabular format...\n"
+                                log_placeholder_1.code(st.session_state.log_tab1, language="bash")
+                                
+                                if '.tsv' in item.lower():
+                                    df = pd.read_csv(io.StringIO(page_text), sep='\t', header=None, on_bad_lines='skip')
+                                else:
+                                    df = pd.read_csv(io.StringIO(page_text), on_bad_lines='skip')
+                            else:
+                                st.session_state.log_tab1 += "  -> [Local] Scanning local file paths...\n"
+                                file_path = item if os.path.exists(item) else os.path.join(DATASETS_DIR, item)
+                                if os.path.exists(file_path):
+                                    st.session_state.log_tab1 += f"  -> [Local] File located at {file_path}. Reading data...\n"
+                                    if file_path.lower().endswith('.tsv'):
+                                        df = pd.read_csv(file_path, sep='\t', header=None, on_bad_lines='skip')
+                                    else:
+                                        df = pd.read_csv(file_path, on_bad_lines='skip')
+                                else:
+                                    st.session_state.log_tab1 += f"  ❌ Error: File not found.\n"
+                                    log_placeholder_1.code(st.session_state.log_tab1, language="bash")
+                                    continue
+
+                            st.session_state.log_tab1 += f"  -> [Data] Raw dimensions: {df.shape[0]:,} rows, {df.shape[1]} columns.\n"
+                            st.session_state.log_tab1 += "  -> [Data] Initiating Smart Column Detection algorithm...\n"
+                            log_placeholder_1.code(st.session_state.log_tab1, language="bash")
+
+                            # Smart Cleanup
+                            df.dropna(axis=1, how='all', inplace=True)
+                            lengths = {col: df[col].astype(str).str.len().mean() for col in df.columns}
+                            text_col = max(lengths, key=lengths.get)
+                            remaining_cols = [col for col in df.columns if col != text_col]
+                            if not remaining_cols: 
+                                st.session_state.log_tab1 += "  ❌ Error: Could not isolate labels from text.\n"
                                 continue
+                                
+                            unique_counts = {c: df[c].nunique() for c in remaining_cols}
+                            label_col = min(unique_counts, key=unique_counts.get)
 
-                        # Smart Cleanup
-                        df.dropna(axis=1, how='all', inplace=True)
-                        lengths = {col: df[col].astype(str).str.len().mean() for col in df.columns}
-                        text_col = max(lengths, key=lengths.get)
-                        remaining_cols = [col for col in df.columns if col != text_col]
-                        if not remaining_cols: continue
-                        unique_counts = {c: df[c].nunique() for c in remaining_cols}
-                        label_col = min(unique_counts, key=unique_counts.get)
+                            st.session_state.log_tab1 += f"  -> [Data] Identified '{label_col}' as Label column and '{text_col}' as Text block.\n"
+                            st.session_state.log_tab1 += "  -> [Data] Normalizing labels (Mapping phishing/spam to 1, benign to 0)...\n"
+                            log_placeholder_1.code(st.session_state.log_tab1, language="bash")
 
-                        df = df[[label_col, text_col]]
-                        df.columns = ['raw_label', 'text_content']
-                        phish_keywords = ['spam', '1', '1.0', 'phishing', 'malicious', 'bad']
-                        df['label'] = df['raw_label'].apply(lambda x: 1 if str(x).strip().lower() in phish_keywords else 0)
-                        df = df[['label', 'text_content']].dropna().drop_duplicates()
+                            df = df[[label_col, text_col]]
+                            df.columns = ['raw_label', 'text_content']
+                            phish_keywords = ['spam', '1', '1.0', 'phishing', 'malicious', 'bad']
+                            df['label'] = df['raw_label'].apply(lambda x: 1 if str(x).strip().lower() in phish_keywords else 0)
+                            
+                            initial_count = len(df)
+                            df = df[['label', 'text_content']].dropna().drop_duplicates()
+                            dropped_count = initial_count - len(df)
+                            
+                            st.session_state.log_tab1 += f"  -> [Data] Dropped {dropped_count:,} blank or duplicate rows.\n"
+                            st.session_state.log_tab1 += f"  ✅ Success: Extracted {len(df):,} clean records.\n"
+                            master_df = pd.concat([master_df, df], ignore_index=True)
 
-                        st.session_state.log_tab1 += f" ✅ Extracted {len(df)} records.\n"
-                        master_df = pd.concat([master_df, df], ignore_index=True)
-
-                    except Exception as e:
-                        st.session_state.log_tab1 += f" ❌ Error: {str(e)[:50]}...\n"
-                    
-                    log_placeholder_1.code(st.session_state.log_tab1, language="bash")
+                        except Exception as e:
+                            st.session_state.log_tab1 += f"  ❌ Error: {str(e)[:100]}...\n"
+                        
+                        log_placeholder_1.code(st.session_state.log_tab1, language="bash")
 
                 if driver: driver.quit()
 
                 if not master_df.empty:
+                    st.session_state.log_tab1 += "\n--- Finalizing Master Dataset ---\n"
+                    st.session_state.log_tab1 += "  -> Verifying cross-dataset duplicates...\n"
+                    
+                    final_initial = len(master_df)
                     master_df.drop_duplicates(subset=['text_content'], inplace=True)
+                    st.session_state.log_tab1 += f"  -> Removed {final_initial - len(master_df):,} cross-dataset duplicates.\n"
+                    
                     save_path = os.path.join(DATASETS_DIR, out_filename)
                     master_df.to_csv(save_path, index=False)
-                    st.session_state.log_tab1 += f"\n🎉 DONE! Saved {len(master_df)} unique records."
+                    st.session_state.log_tab1 += f"\n🎉 DONE! Saved total {len(master_df):,} unique records to {save_path}"
+                    
                     log_placeholder_1.code(st.session_state.log_tab1, language="bash")
                     st.session_state.flow_step = 1
                     status.update(label="Extraction Complete!", state="complete", expanded=False)
@@ -259,7 +293,8 @@ with tab2:
 
     elif train_btn and selected_csv != "No CSV found":
         target_csv_path = os.path.join(DATASETS_DIR, selected_csv)
-        st.session_state.log_tab2 = f"> Loading: {target_csv_path}...\n"
+        st.session_state.log_tab2 = f"--- INITIATING NLP PIPELINE ---\n"
+        st.session_state.log_tab2 += f"> Target Architecture: {target_csv_path}\n"
         
         with st.status("Executing NLP Pipeline...", expanded=True) as status:
             log_placeholder_2 = st.empty()
@@ -267,7 +302,11 @@ with tab2:
             try:
                 df = pd.read_csv(target_csv_path)
                 st.session_state.flow_step = 1
-                st.session_state.log_tab2 += f"> Loaded {len(df)} records. Cleaning text...\n"
+                st.session_state.log_tab2 += f"> Dataset loaded into memory. Total rows: {len(df):,}.\n\n"
+                
+                st.session_state.log_tab2 += "[Step 1] Executing Natural Language Preprocessing...\n"
+                st.session_state.log_tab2 += "  -> Stripping punctuation and converting string formats to lowercase.\n"
+                st.session_state.log_tab2 += "  -> Querying NLTK Dictionary for English stopword exclusion list...\n"
                 log_placeholder_2.code(st.session_state.log_tab2, language="bash")
 
                 def clean_text(text):
@@ -278,15 +317,24 @@ with tab2:
                     except: return ""
 
                 df['cleaned_text'] = df['text_content'].apply(clean_text)
+                
+                initial_len = len(df)
                 df.dropna(subset=['cleaned_text'], inplace=True)
+                st.session_state.log_tab2 += f"  -> Removed {initial_len - len(df):,} corrupted/empty text bodies.\n"
 
-                st.session_state.log_tab2 += "> Extracting TF-IDF Features...\n"
+                st.session_state.log_tab2 += "\n[Step 2] Feature Extraction (TF-IDF Vectorization)...\n"
+                st.session_state.log_tab2 += "  -> Calculating Term Frequency-Inverse Document Frequency.\n"
                 log_placeholder_2.code(st.session_state.log_tab2, language="bash")
                 
                 st.session_state.vectorizer = TfidfVectorizer(max_features=5000)
                 X_vec = st.session_state.vectorizer.fit_transform(df['cleaned_text'])
+                
+                st.session_state.log_tab2 += f"  -> Successfully generated numerical vocabulary. Matrix shape: {X_vec.shape[0]:,} rows x {X_vec.shape[1]:,} features.\n"
+                
                 X_train, X_test, y_train, y_test = train_test_split(X_vec, df['label'], test_size=0.2, random_state=42)
+                st.session_state.log_tab2 += f"  -> Shuffling and splitting data arrays: 80% Training ({X_train.shape[0]:,} samples), 20% Testing ({X_test.shape[0]:,} samples).\n"
                 st.session_state.flow_step = 2
+                log_placeholder_2.code(st.session_state.log_tab2, language="bash")
 
                 models_to_train = {
                     "Naïve Bayes": MultinomialNB(),
@@ -297,11 +345,18 @@ with tab2:
                 st.session_state.models.clear()
                 st.session_state.training_metrics = []
 
+                st.session_state.log_tab2 += "\n[Step 3] AI Model Compilation & Calibration...\n"
+
                 for name, model in models_to_train.items():
-                    st.session_state.log_tab2 += f"> Compiling {name}...\n"
+                    st.session_state.log_tab2 += f"\n  --- Engine: {name} ---\n"
+                    st.session_state.log_tab2 += f"      -> Fitting internal weights using {X_train.shape[0]:,} training vectors...\n"
                     log_placeholder_2.code(st.session_state.log_tab2, language="bash")
                     
                     model.fit(X_train, y_train)
+                    
+                    st.session_state.log_tab2 += f"      -> Evaluating performance against {X_test.shape[0]:,} isolated test vectors...\n"
+                    log_placeholder_2.code(st.session_state.log_tab2, language="bash")
+                    
                     preds = model.predict(X_test)
                     
                     st.session_state.training_metrics.append({
@@ -312,12 +367,16 @@ with tab2:
                         "F1": f"{f1_score(y_test, preds, zero_division=0)*100:.1f}%"
                     })
                     st.session_state.models[name] = model
+                    st.session_state.log_tab2 += "      -> Calibration complete.\n"
 
                 save_filename = f"phishguard_models_{len(df)}_records.pkl"
                 save_path = os.path.join(JOBLIBS_DIR, save_filename)
+                
+                st.session_state.log_tab2 += "\n[Step 4] Serialization\n"
+                st.session_state.log_tab2 += f"  -> Compiling Vectorizer and AI Models into a single binary .pkl bundle...\n"
                 joblib.dump({'vectorizer': st.session_state.vectorizer, 'models': st.session_state.models}, save_path)
                 
-                st.session_state.log_tab2 += f"> ✅ Saved to '{save_filename}'\n"
+                st.session_state.log_tab2 += f"\n✅ PIPELINE COMPLETE. Data saved safely to '{save_filename}'."
                 log_placeholder_2.code(st.session_state.log_tab2, language="bash")
                 
                 st.session_state.flow_step = 4
