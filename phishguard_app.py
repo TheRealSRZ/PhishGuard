@@ -482,3 +482,11 @@ with tab4:
                                 # -----------------------------------
                                 
                                 driver.get(url_input)
+                                time.sleep(2)
+                                page_text = driver.find_element(By.TAG_NAME, "body").text
+                                driver.quit()
+                                
+                                execute_prediction(page_text[:5000])
+                                
+                            except Exception as e:
+                                st.error(f"⚠️ Scraping Failed. If on Streamlit Cloud, ensure packages.txt is configured. Error details: {e}")
