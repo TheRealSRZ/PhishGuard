@@ -8,6 +8,7 @@ import pandas as pd
 import numpy as np
 import joblib
 import streamlit as st
+import plotly.express as px
 
 # Scikit-learn & NLTK
 import nltk
@@ -400,13 +401,31 @@ with tab2:
         # Convert metrics to a DataFrame
         metrics_df = pd.DataFrame(st.session_state.training_metrics)
         
-        # Set the model name as the index so Streamlit groups the bars by Model
-        chart_data = metrics_df.set_index("Model")
+        # 1. 'Melt' the dataframe so Plotly knows how to group the bars
+        df_melted = metrics_df.melt(id_vars="Model", var_name="Metric", value_name="Score")
         
-        # Render a highly visual grouped bar chart
-        st.bar_chart(chart_data, use_container_width=True)
+        # 2. Create a visually striking grouped bar chart
+        fig = px.bar(
+            df_melted, 
+            x="Model", 
+            y="Score", 
+            color="Metric", 
+            barmode="group",
+            text_auto='.1f' # Displays the exact percentage on top of each bar
+        )
         
-        # Optional: Keep a clean dataframe view for exact numbers hidden in an expander
+        # 3. Lock the Y-axis to 100% so it's visually accurate
+        fig.update_layout(
+            yaxis_title="Score (%)",
+            xaxis_title="AI Engine",
+            yaxis_range=[0, 100], 
+            margin=dict(t=20, b=20)
+        )
+        
+        # 4. Render the chart
+        st.plotly_chart(fig, use_container_width=True)
+        
+        # Optional: Keep a clean dataframe view hidden in an expander
         with st.expander("🔍 View Exact Percentage Metrics"):
             st.dataframe(
                 metrics_df.style.format({
