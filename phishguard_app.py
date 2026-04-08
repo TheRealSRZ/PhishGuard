@@ -211,11 +211,13 @@ with tab1:
                             # Smart Cleanup
                             df.dropna(axis=1, how='all', inplace=True)
                             
-                            # --- NEW: Manual Override for your specific dataset ---
                             if 'phishing_messages.csv' in item:
-                                # REPLACE THESE with the actual exact column names from your CSV
-                                text_col = 'YOUR_ACTUAL_MESSAGE_COLUMN_NAME' 
-                                label_col = 'YOUR_ACTUAL_LABEL_COLUMN_NAME'
+                                # 1. Set the text column to match Column D in your file
+                                text_col = 'message' 
+                                
+                                # 2. Force every row in this file to be labeled as phishing ('1')
+                                df['manual_label'] = '1'
+                                label_col = 'manual_label'
                             else:
                                 # Fallback to smart detection for other files
                                 lengths = {col: df[col].astype(str).str.len().mean() for col in df.columns}
