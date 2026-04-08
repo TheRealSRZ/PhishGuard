@@ -210,8 +210,20 @@ with tab1:
 
                             # Smart Cleanup
                             df.dropna(axis=1, how='all', inplace=True)
-                            lengths = {col: df[col].astype(str).str.len().mean() for col in df.columns}
-                            text_col = max(lengths, key=lengths.get)
+                            
+                            # --- NEW: Manual Override for your specific dataset ---
+                            if 'phishing_messages.csv' in item:
+                                # REPLACE THESE with the actual exact column names from your CSV
+                                text_col = 'YOUR_ACTUAL_MESSAGE_COLUMN_NAME' 
+                                label_col = 'YOUR_ACTUAL_LABEL_COLUMN_NAME'
+                            else:
+                                # Fallback to smart detection for other files
+                                lengths = {col: df[col].astype(str).str.len().mean() for col in df.columns}
+                                text_col = max(lengths, key=lengths.get)
+                                remaining_cols = [col for col in df.columns if col != text_col]
+                                if remaining_cols:
+                                    unique_counts = {c: df[c].nunique() for c in remaining_cols}
+                                    label_col = min(unique_counts, key=unique_counts.get)
                             remaining_cols = [col for col in df.columns if col != text_col]
                             if not remaining_cols: 
                                 st.session_state.log_tab1 += "  ❌ Error: Could not isolate labels from text.\n"
@@ -279,7 +291,7 @@ with tab2:
         with st.container(border=True):
             st.markdown("#### Option A: Train New Models")
             selected_csv = st.selectbox("Select CSV Dataset:", ["No CSV found"] if not csv_files else csv_files)
-            train_btn = st.button("🧠 Execute Training Pipeline", type="primary", use_container_width=True)
+            train_btn = st.button("🧠 Execute Training", type="primary", use_container_width=True)
         
     with colB:
         with st.container(border=True):
@@ -301,10 +313,10 @@ with tab2:
 
     elif train_btn and selected_csv != "No CSV found":
         target_csv_path = os.path.join(DATASETS_DIR, selected_csv)
-        st.session_state.log_tab2 = f"--- INITIATING NLP PIPELINE ---\n"
+        st.session_state.log_tab2 = f"--- INITIATING NLP ---\n"
         st.session_state.log_tab2 += f"> Target Architecture: {target_csv_path}\n"
         
-        with st.status("Executing NLP Pipeline...", expanded=True) as status:
+        with st.status("Executing NLP...", expanded=True) as status:
             log_placeholder_2 = st.empty()
             
             try:
@@ -384,7 +396,7 @@ with tab2:
                 st.session_state.log_tab2 += f"  -> Compiling Vectorizer and AI Models into a single binary .pkl bundle...\n"
                 joblib.dump({'vectorizer': st.session_state.vectorizer, 'models': st.session_state.models}, save_path)
                 
-                st.session_state.log_tab2 += f"\n✅ PIPELINE COMPLETE. Data saved safely to '{save_filename}'."
+                st.session_state.log_tab2 += f"\n✅ TRAINING COMPLETE. Data saved safely to '{save_filename}'."
                 log_placeholder_2.code(st.session_state.log_tab2, language="bash")
                 
                 st.session_state.flow_step = 4
@@ -392,7 +404,7 @@ with tab2:
                 st.toast("✅ Training Complete!", icon="🚀")
 
             except Exception as e:
-                status.update(label="Pipeline Failed", state="error")
+                status.update(label="Failed", state="error")
                 st.error(f"Error: {e}")
 
     # Display Metrics if they exist
@@ -565,7 +577,7 @@ with tab4:
                 display_text = raw_text[:2000] # Capture a good chunk of text
                 
                 if prediction == 1 and flagged_words:
-                    st.markdown(f"**🚩 AI Flagged Keywords:** `{', '.join(flagged_words)}`")
+                    st.markdown(f"**🚩 Flagged Keywords:** `{', '.join(flagged_words)}`")
                     st.divider()
                     
                     # Highlight the flagged words in the text using HTML
