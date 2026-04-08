@@ -4,6 +4,7 @@ import io
 import string
 import random
 import time
+import re
 import pandas as pd
 import numpy as np
 import joblib
@@ -545,6 +546,14 @@ with tab4:
             vectorized_text = st.session_state.vectorizer.transform([cleaned])
             prediction = model.predict(vectorized_text)[0]
 
+            # --- NEW: Extract the most important words ---
+            feature_names = st.session_state.vectorizer.get_feature_names_out()
+            tfidf_scores = vectorized_text.toarray()[0]
+            
+            # Get the top 8 words with the highest TF-IDF scores in this specific text
+            top_indices = tfidf_scores.argsort()[-8:][::-1]
+            flagged_words = [feature_names[i] for i in top_indices if tfidf_scores[i] > 0]
+
             if prediction == 1:
                 st.error("### 🚨 CRITICAL ALERT: Malicious Phishing Intent Detected!")
                 st.progress(100, text="Threat Level: HIGH")
@@ -553,7 +562,23 @@ with tab4:
                 st.progress(10, text="Threat Level: LOW")
 
             with st.expander("View Scanned Content"):
-                st.write(raw_text[:1000] + ("..." if len(raw_text) > 1000 else ""))
+                display_text = raw_text[:2000] # Capture a good chunk of text
+                
+                if prediction == 1 and flagged_words:
+                    st.markdown(f"**🚩 AI Flagged Keywords:** `{', '.join(flagged_words)}`")
+                    st.divider()
+                    
+                    # Highlight the flagged words in the text using HTML
+                    for word in flagged_words:
+                        # Regex ensures we only highlight whole words, case-insensitive
+                        pattern = re.compile(rf'\b({re.escape(word)})\b', re.IGNORECASE)
+                        display_text = pattern.sub(
+                            r'<mark style="background-color: #ffcccc; color: #990000; font-weight: bold; padding: 2px; border-radius: 3px;">\1</mark>', 
+                            display_text
+                        )
+                
+                # Render the text with HTML enabled to show the <mark> highlights
+                st.markdown(display_text + ("..." if len(raw_text) > 2000 else ""), unsafe_allow_html=True)
 
         if analyze_text_btn:
             execute_prediction(raw_text_input)
