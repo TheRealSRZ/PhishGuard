@@ -367,10 +367,10 @@ with tab2:
                     
                     st.session_state.training_metrics.append({
                         "Model": name,
-                        "Acc": f"{accuracy_score(y_test, preds)*100:.1f}%",
-                        "Prec": f"{precision_score(y_test, preds, zero_division=0)*100:.1f}%",
-                        "Rec": f"{recall_score(y_test, preds, zero_division=0)*100:.1f}%",
-                        "F1": f"{f1_score(y_test, preds, zero_division=0)*100:.1f}%"
+                        "Accuracy": float(accuracy_score(y_test, preds) * 100),
+                        "Precision": float(precision_score(y_test, preds, zero_division=0) * 100),
+                        "Recall": float(recall_score(y_test, preds, zero_division=0) * 100),
+                        "F1-Score": float(f1_score(y_test, preds, zero_division=0) * 100)
                     })
                     st.session_state.models[name] = model
                     st.session_state.log_tab2 += "      -> Calibration complete.\n"
@@ -395,15 +395,29 @@ with tab2:
 
     # Display Metrics if they exist
     if st.session_state.training_metrics:
-        st.markdown("### 📊 Engine Performance Metrics")
-        for metric in st.session_state.training_metrics:
-            st.markdown(f"**{metric['Model']}**")
-            m1, m2, m3, m4 = st.columns(4)
-            m1.metric("Accuracy", metric['Acc'])
-            m2.metric("Precision", metric['Prec'])
-            m3.metric("Recall", metric['Rec'])
-            m4.metric("F1-Score", metric['F1'])
-            st.divider()
+        st.markdown("### 📊 Engine Performance Comparison")
+        
+        # Convert metrics to a DataFrame
+        metrics_df = pd.DataFrame(st.session_state.training_metrics)
+        
+        # Set the model name as the index so Streamlit groups the bars by Model
+        chart_data = metrics_df.set_index("Model")
+        
+        # Render a highly visual grouped bar chart
+        st.bar_chart(chart_data, use_container_width=True)
+        
+        # Optional: Keep a clean dataframe view for exact numbers hidden in an expander
+        with st.expander("🔍 View Exact Percentage Metrics"):
+            st.dataframe(
+                metrics_df.style.format({
+                    "Accuracy": "{:.2f}%",
+                    "Precision": "{:.2f}%",
+                    "Recall": "{:.2f}%",
+                    "F1-Score": "{:.2f}%"
+                }),
+                use_container_width=True,
+                hide_index=True
+            )
 
     if st.session_state.log_tab2:
         with st.expander("View Raw Compilation Logs"):
