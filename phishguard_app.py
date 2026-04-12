@@ -17,7 +17,8 @@ from nltk.corpus import stopwords
 from sklearn.model_selection import train_test_split
 from sklearn.feature_extraction.text import TfidfVectorizer
 from sklearn.naive_bayes import MultinomialNB
-from sklearn.svm import SVC
+from sklearn.svm import SVC, LinearSVC  # <--- FIX: Added LinearSVC here!
+from sklearn.calibration import CalibratedClassifierCV
 from sklearn.ensemble import RandomForestClassifier
 from sklearn.metrics import accuracy_score, precision_score, recall_score, f1_score
 
@@ -302,16 +303,18 @@ with tab2:
             load_btn = st.button("⚡ Load Weights", use_container_width=True)
 
     if load_btn and selected_pkl != "No saved models found":
-        target_pkl_path = os.path.join(JOBLIBS_DIR, selected_pkl)
-        with st.spinner("Unpacking AI weights..."):
-            try:
-                saved_data = joblib.load(target_pkl_path)
-                st.session_state.vectorizer = saved_data['vectorizer']
-                st.session_state.models = saved_data['models']
-                st.session_state.flow_step = 4
-                st.toast("✅ Models loaded successfully!", icon="🛡️")
-            except Exception as e:
-                st.error(f"Failed to load: {e}")
+            target_pkl_path = os.path.join(JOBLIBS_DIR, selected_pkl)
+            with st.spinner("Unpacking AI weights..."):
+                try:
+                    saved_data = joblib.load(target_pkl_path)
+                    st.session_state.vectorizer = saved_data['vectorizer']
+                    st.session_state.models = saved_data['models']
+                    st.session_state.training_metrics = saved_data.get('metrics', [])
+                    
+                    st.session_state.flow_step = 4
+                    st.toast("✅ Models loaded successfully!", icon="🛡️")
+                except Exception as e:
+                    st.error(f"Failed to load: {e}")
 
     elif train_btn and selected_csv != "No CSV found":
         target_csv_path = os.path.join(DATASETS_DIR, selected_csv)
@@ -359,11 +362,10 @@ with tab2:
                 log_placeholder_2.code(st.session_state.log_tab2, language="bash")
 
                 models_to_train = {
-                    "Naïve Bayes": MultinomialNB(),
-                    "SVM (Linear)": SVC(kernel='linear', random_state=42),
-                    "Random Forest": RandomForestClassifier(n_estimators=100, random_state=42)
-                }
-
+                                    "Naïve Bayes": MultinomialNB(),
+                                    "SVM (Linear)": CalibratedClassifierCV(LinearSVC(random_state=42)), 
+                                    "Random Forest": RandomForestClassifier(n_estimators=100, random_state=42)
+                                }
                 st.session_state.models.clear()
                 st.session_state.training_metrics = []
 
@@ -395,8 +397,12 @@ with tab2:
                 save_path = os.path.join(JOBLIBS_DIR, save_filename)
                 
                 st.session_state.log_tab2 += "\n[Step 4] Serialization\n"
-                st.session_state.log_tab2 += f"  -> Compiling Vectorizer and AI Models into a single binary .pkl bundle...\n"
-                joblib.dump({'vectorizer': st.session_state.vectorizer, 'models': st.session_state.models}, save_path)
+                st.session_state.log_tab2 += f"  -> Compiling Vectorizer, AI Models, and Metrics into a single binary .pkl bundle...\n"
+                joblib.dump({
+                    'vectorizer': st.session_state.vectorizer, 
+                    'models': st.session_state.models,
+                    'metrics': st.session_state.training_metrics 
+                }, save_path)
                 
                 st.session_state.log_tab2 += f"\n✅ TRAINING COMPLETE. Data saved safely to '{save_filename}'."
                 log_placeholder_2.code(st.session_state.log_tab2, language="bash")
@@ -442,16 +448,27 @@ with tab2:
         
         # Optional: Keep a clean dataframe view hidden in an expander
         with st.expander("🔍 View Exact Percentage Metrics"):
-            st.dataframe(
-                metrics_df.style.format({
-                    "Accuracy": "{:.2f}%",
-                    "Precision": "{:.2f}%",
-                    "Recall": "{:.2f}%",
-                    "F1-Score": "{:.2f}%"
-                }),
-                use_container_width=True,
-                hide_index=True
-            )
+                    st.dataframe(
+                        metrics_df.style.format({
+                            "Accuracy": "{:.2f}%",
+                            "Precision": "{:.2f}%",
+                            "Recall": "{:.2f}%",
+                            "F1-Score": "{:.2f}%"
+                        }),
+                        use_container_width=True,
+                        hide_index=True
+                    )
+                    
+                    # --- NEW: Downloadable Audit Log ---
+                    csv_export = metrics_df.to_csv(index=False).encode('utf-8')
+                    st.download_button(
+                        label="📥 Download Audit Log (CSV)",
+                        data=csv_export,
+                        file_name=f"phishguard_audit_log.csv",
+                        mime="text/csv",
+                        use_container_width=True
+                    )
+                    # -----------------------------------
 
     if st.session_state.log_tab2:
         with st.expander("View Raw Compilation Logs"):
@@ -466,11 +483,6 @@ with tab3:
     
     sampler_csv = st.selectbox("Select Dataset:", ["No CSV found"] if not csv_files else csv_files, key="sampler_box")
     
-    c1, c2, c3 = st.columns(3)
-    extract_phish = c1.button("🔴 Extract Real Phishing", use_container_width=True)
-    extract_safe = c2.button("🟢 Extract Safe (Ham)", use_container_width=True)
-    extract_synth = c3.button("🤖 Generate Synthetic", use_container_width=True)
-
     def load_sampler_df(filename):
         if filename == "No CSV found": return None
         try:
@@ -478,6 +490,35 @@ with tab3:
             if not {'text_content', 'label'}.issubset(df.columns): return None
             return df
         except: return None
+
+    # --- NEW: Visual Dataset Overview ---
+    if sampler_csv != "No CSV found":
+        df_sampler = load_sampler_df(sampler_csv)
+        if df_sampler is not None:
+            with st.expander("📊 View Dataset Composition", expanded=True):
+                # Count the labels and map them to readable names
+                counts = df_sampler['label'].value_counts().reset_index()
+                counts.columns = ['Label', 'Count']
+                counts['Label Name'] = counts['Label'].map({1: 'Phishing (Malicious)', 0: 'Ham (Safe)'})
+                
+                # Create a sleek donut chart
+                pie_fig = px.pie(
+                    counts, 
+                    values='Count', 
+                    names='Label Name', 
+                    color='Label Name',
+                    color_discrete_map={'Phishing (Malicious)': '#ff4b4b', 'Ham (Safe)': '#00cc96'},
+                    hole=0.4 # Makes it a donut chart!
+                )
+                pie_fig.update_layout(margin=dict(t=10, b=10, l=10, r=10), height=300)
+                st.plotly_chart(pie_fig, use_container_width=True)
+    st.divider()
+    # ------------------------------------
+    
+    c1, c2, c3 = st.columns(3)
+    extract_phish = c1.button("🔴 Extract Real Phishing", use_container_width=True)
+    extract_safe = c2.button("🟢 Extract Safe (Ham)", use_container_width=True)
+    extract_synth = c3.button("🤖 Generate Synthetic", use_container_width=True)
 
     if extract_phish or extract_safe:
         df = load_sampler_df(sampler_csv)
@@ -545,6 +586,11 @@ with tab4:
             st.caption("Note: Cloud deployment requires Chromium packages to scrape.")
             analyze_url_btn = st.button("🌐 Scrape & Scan", use_container_width=True)
 
+        st.markdown("#### ⚙️ Security Operations")
+        user_threshold = st.slider(
+            "Set AI Confidence Threshold (Higher = Less Strict, Lower = More Strict)", 
+            min_value=50, max_value=99, value=75, step=1
+        )
         st.divider()
 
         def execute_prediction(raw_text):
@@ -558,27 +604,33 @@ with tab4:
             cleaned = " ".join([w for w in text_lower.split() if w not in stops])
             
             vectorized_text = st.session_state.vectorizer.transform([cleaned])
-            prediction = model.predict(vectorized_text)[0]
 
-            # --- NEW: Extract the most important words ---
+            probabilities = model.predict_proba(vectorized_text)[0]
+            phishing_confidence = probabilities[1] * 100 # Percentage chance it is phishing
+            safe_confidence = probabilities[0] * 100     # Percentage chance it is safe
+
             feature_names = st.session_state.vectorizer.get_feature_names_out()
             tfidf_scores = vectorized_text.toarray()[0]
-            
-            # Get the top 8 words with the highest TF-IDF scores in this specific text
             top_indices = tfidf_scores.argsort()[-8:][::-1]
             flagged_words = [feature_names[i] for i in top_indices if tfidf_scores[i] > 0]
 
-            if prediction == 1:
-                st.error("### 🚨 CRITICAL ALERT: Malicious Phishing Intent Detected!")
-                st.progress(100, text="Threat Level: HIGH")
+            # We compare the AI's confidence against the user's slider
+            if phishing_confidence >= user_threshold:
+                st.error(f"### 🚨 CRITICAL ALERT: Phishing Detected!")
+                st.progress(int(phishing_confidence), text=f"Threat Confidence: {phishing_confidence:.1f}%")
+            elif phishing_confidence >= 40:
+                # A new "middle ground" for suspicious but not outright malicious text
+                st.warning(f"### ⚠️ SUSPICIOUS: Proceed with caution.")
+                st.progress(int(phishing_confidence), text=f"Threat Confidence: {phishing_confidence:.1f}%")
             else:
-                st.success("### ✅ SAFE: No obvious malicious intent found.")
-                st.progress(10, text="Threat Level: LOW")
+                st.success(f"### ✅ SAFE: No obvious malicious intent.")
+                st.progress(int(safe_confidence), text=f"Safety Confidence: {safe_confidence:.1f}%")
 
             with st.expander("View Scanned Content"):
                 display_text = raw_text[:2000] # Capture a good chunk of text
                 
-                if prediction == 1 and flagged_words:
+                # Fixed: Swapped 'prediction == 1' for 'phishing_confidence >= 40'
+                if phishing_confidence >= 40 and flagged_words:
                     st.markdown(f"**🚩 Flagged Keywords:** `{', '.join(flagged_words)}`")
                     st.divider()
                     
@@ -598,33 +650,33 @@ with tab4:
             execute_prediction(raw_text_input)
 
         if analyze_url_btn:
-                    if not url_input.startswith("http"):
-                        st.warning("Invalid URL. Include http:// or https://")
-                    else:
-                        with st.spinner("Scraping target..."):
-                            try:
-                                options = Options()
-                                options.add_argument("--headless")
-                                options.add_argument("--disable-gpu")
-                                options.add_argument("--no-sandbox")
-                                options.add_argument("--disable-dev-shm-usage")
-                                
-                                # --- NEW OS-AWARE SELENIUM SETUP ---
-                                if platform.system() == "Linux":
-                                    options.binary_location = "/usr/bin/chromium"
-                                    svc = Service("/usr/bin/chromedriver")
-                                else:
-                                    svc = Service(ChromeDriverManager().install())
-                                    
-                                driver = webdriver.Chrome(service=svc, options=options)
-                                # -----------------------------------
-                                
-                                driver.get(url_input)
-                                time.sleep(2)
-                                page_text = driver.find_element(By.TAG_NAME, "body").text
-                                driver.quit()
-                                
-                                execute_prediction(page_text[:5000])
-                                
-                            except Exception as e:
-                                st.error(f"⚠️ Scraping Failed. If on Streamlit Cloud, ensure packages.txt is configured. Error details: {e}")
+            if not url_input.startswith("http"):
+                st.warning("Invalid URL. Include http:// or https://")
+            else:
+                with st.spinner("Scraping target..."):
+                    try:
+                        options = Options()
+                        options.add_argument("--headless")
+                        options.add_argument("--disable-gpu")
+                        options.add_argument("--no-sandbox")
+                        options.add_argument("--disable-dev-shm-usage")
+                        
+                        # --- NEW OS-AWARE SELENIUM SETUP ---
+                        if platform.system() == "Linux":
+                            options.binary_location = "/usr/bin/chromium"
+                            svc = Service("/usr/bin/chromedriver")
+                        else:
+                            svc = Service(ChromeDriverManager().install())
+                            
+                        driver = webdriver.Chrome(service=svc, options=options)
+                        # -----------------------------------
+                        
+                        driver.get(url_input)
+                        time.sleep(2)
+                        page_text = driver.find_element(By.TAG_NAME, "body").text
+                        driver.quit()
+                        
+                        execute_prediction(page_text[:5000])
+                        
+                    except Exception as e:
+                        st.error(f"⚠️ Scraping Failed. If on Streamlit Cloud, ensure packages.txt is configured. Error details: {e}")
